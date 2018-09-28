@@ -15,8 +15,8 @@ def get_align_func(gap_open, score_matrix, gap_extend=None):
     def align(seq_a, seq_b):
         comb_scores = get_comb_scores(seq_a, seq_b)
         matrix = np.zeros((len(seq_a)+1, len(seq_b)+1))
-        matrix[:, 0] = -gap_open*np.arange(len(seq_a)+1)
-        matrix[0, :] = -gap_open*np.arange(len(seq_b)+1)
+        matrix[:, 0] = gap_open*np.arange(len(seq_a)+1)
+        matrix[0, :] = gap_open*np.arange(len(seq_b)+1)
         for i in range(1, len(seq_a)+1):
             for j in range(1, len(seq_b)+1):
                 scores = [matrix[i-1, j]+gap_open, matrix[i, j-1]+gap_open, matrix[i-1, j-1]+comb_scores[i-1, j-1]]
