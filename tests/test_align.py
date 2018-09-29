@@ -7,6 +7,11 @@ def align():
     return get_align_func(-1, get_score_mat(-1))
 
 
+@pytest.fixture
+def align_affine():
+    return get_align_func(-3, get_score_mat(-1), -1)
+
+
 def test_align(align):
     a = [1, 2, 0, 3, 2, 1, 0]
     b = [1, 2, 0, 3, 2, 1, 0]
