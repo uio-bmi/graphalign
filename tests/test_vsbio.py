@@ -23,6 +23,11 @@ def align_affine():
 
 
 @pytest.fixture
+def align_graph():
+    return get_align_func(-3, get_score_mat(-1), -1, use_graphs=True)
+
+
+@pytest.fixture
 def bio_align():
     return get_bio_align_func(-3, get_score_mat(-1), -1)
 

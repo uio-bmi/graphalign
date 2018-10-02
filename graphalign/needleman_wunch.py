@@ -1,5 +1,9 @@
 import numpy as np
 from collections import namedtuple
+from itertools import chain
+
+from .sequencegraph import SequenceGraph, get_prev_func
+
 
 Alphabet = namedtuple("Alphabet", ["to_str", "to_num"])
 
@@ -14,25 +18,29 @@ def get_score_mat(mismatch_score, alphabet_size=4):
     return scores
 
 
-def get_align_func(gap_open, score_matrix, gap_extend=None):
+def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
     if gap_extend is None:
         gap_extend = gap_open
 
     def get_comb_scores(seq_a, seq_b):
         return np.array([[score_matrix[c_a][c_b] for c_b in seq_b] for c_a in seq_a])
 
-    def align(seq_a, seq_b):
-        comb_scores = get_comb_scores(seq_a, seq_b)
-        matrix = np.zeros((len(seq_a)+1, len(seq_b)+1))
-        open_matrix_a = np.zeros((len(seq_a)+1, len(seq_b)+1))
-        open_matrix_b = np.zeros((len(seq_a)+1, len(seq_b)+1))
-        matrix[1:, 0] = gap_open+gap_extend*np.arange(len(seq_a))
-        open_matrix_a[1:, 0] = gap_open+gap_extend*np.arange(len(seq_a))
+    def init_matrices(len_a, len_b):
+        matrix = np.zeros((len_a+1, len_b+1))
+        open_matrix_a = np.zeros((len_a+1, len_b+1))
+        open_matrix_b = np.zeros((len_a+1, len_b+1))
+        matrix[1:, 0] = gap_open+gap_extend*np.arange(len_a)
+        open_matrix_a[1:, 0] = gap_open+gap_extend*np.arange(len_a)
+        open_matrix_b[0, 1:] = gap_open+gap_extend*np.arange(len_b)
+        matrix[0, 1:] = gap_open+gap_extend*np.arange(len_b)
         open_matrix_a[0, :] = -100
         open_matrix_b[:, 0] = -100
-        open_matrix_b[0, 1:] = gap_open+gap_extend*np.arange(len(seq_b))
+        return matrix, open_matrix_a, open_matrix_b
 
-        matrix[0, 1:] = gap_open+gap_extend*np.arange(len(seq_b))
+    def align(seq_a, seq_b):
+        comb_scores = get_comb_scores(seq_a, seq_b)
+        matrix, open_matrix_a, open_matrix_b = init_matrices(
+            len(seq_a), len(seq_b))
         for i in range(1, len(seq_a)+1):
             for j in range(1, len(seq_b)+1):
                 scores = [matrix[i-1, j]+gap_open,
@@ -44,7 +52,36 @@ def get_align_func(gap_open, score_matrix, gap_extend=None):
                                           open_matrix_b[i, j-1] + gap_extend)
                 matrix[i, j] = max(max(scores), open_matrix_a[i, j], open_matrix_b[i, j])
 
+    def graph_align(graph_a, graph_b):
+        seq_a = graph_a.sequences
+        seq_b = graph_b.sequences
+        comb_scores = get_comb_scores(seq_a, seq_b)
+        matrix, open_matrix_a, open_matrix_b = init_matrices(
+            len(seq_a), len(seq_b))
+        get_prev_a = get_prev_func(graph_a)
+        get_prev_b = get_prev_func(graph_b)
+        for i in range(1, len(seq_a)+1):
+            for j in range(1, len(seq_b)+1):
+                prev_is = get_prev_a(i)
+                prev_js = get_prev_b(j)
+                max_indel = max(chain((matrix[prev_i, j]+gap_open for prev_i in prev_is),
+                                      (matrix[i, prev_j]+gap_open for prev_j in prev_js)))
+                max_match = max(matrix[prev_i, prev_j]+comb_scores[prev_i, prev_j]
+                                for prev_i in prev_is for prev_j in prev_js)
+                open_matrix_a[i, j] = max(max(matrix[prev_i, j]+gap_open,
+                                              open_matrix_a[prev_i, j]+gap_extend)
+                                          for prev_i in prev_is)
+
+                open_matrix_b[i, j] = max(max(matrix[i, prev_j]+gap_open,
+                                              open_matrix_b[i, prev_j] + gap_extend)
+                                          for prev_j in prev_js)
+                matrix[i, j] = max(max_indel, max_match,
+                                   open_matrix_a[i, j], open_matrix_b[i, j])
+
         print(matrix)
         return matrix[-1, -1]
 
+    if use_graphs:
+        return lambda seq_a, seq_b: graph_align(SequenceGraph(seq_a, None, None),
+                                                SequenceGraph(seq_b, None, None))
     return align
