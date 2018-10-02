@@ -2,7 +2,7 @@ import numpy as np
 from collections import namedtuple
 from itertools import chain
 
-from .sequencegraph import SequenceGraph, get_prev_func
+from .sequencegraph import SequenceGraph, get_prev_func, naive_graph
 
 
 Alphabet = namedtuple("Alphabet", ["to_str", "to_num"])
@@ -82,6 +82,6 @@ def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
         return matrix[-1, -1]
 
     if use_graphs:
-        return lambda seq_a, seq_b: graph_align(SequenceGraph(seq_a, None, None),
-                                                SequenceGraph(seq_b, None, None))
+        return lambda seq_a, seq_b: graph_align(naive_graph(seq_a),
+                                                naive_graph(seq_b))
     return align
