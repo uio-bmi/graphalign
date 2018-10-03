@@ -1,6 +1,6 @@
 from Bio import pairwise2
 import numpy as np
-from graphalign import DNAAlphabet, get_align_func, get_score_mat
+from graphalign import DNAAlphabet, get_align_func, get_score_mat, SequenceGraph
 import pytest
 
 
@@ -38,6 +38,7 @@ def test_align_snp_del(bio_align, align_affine):
     assert bio_align(a, b) == align_affine(a, b)
 
 
+#@pytest.mark.skip
 def test_random(bio_align, align_affine):
     np.random.seed(1000)
     for _ in range(100):

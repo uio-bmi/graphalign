@@ -2,7 +2,7 @@ import numpy as np
 from collections import namedtuple
 from itertools import chain
 
-from .sequencegraph import SequenceGraph, get_prev_func, naive_graph
+from .sequencegraph import get_prev_func, naive_graph
 
 
 Alphabet = namedtuple("Alphabet", ["to_str", "to_num"])
@@ -60,23 +60,54 @@ def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
             len(seq_a), len(seq_b))
         get_prev_a = get_prev_func(graph_a)
         get_prev_b = get_prev_func(graph_b)
+        backtrack_matrices = np.zeros((3, len(seq_a)+1, len(seq_b)+1, 3), dtype="int")
+
+        def get_best_linear(i, j):
+            indels = list(chain(((prev_i, j) for prev_i in prev_is),
+                                ((i, prev_j) for prev_j in prev_js)))
+            indel_scores = [matrix[_i, _j]+gap_open for _i, _j in indels]
+            matches = [(prev_i, prev_j) for prev_i in prev_is for prev_j in prev_js]
+            match_scores = [matrix[_i, _j]+comb_scores[_i, _j] for _i, _j in matches]
+            tmp = list(chain(zip(indel_scores, indels),
+                             zip(match_scores, matches)))
+            return max(tmp)
+
+        def get_best_a(prev_is, j):
+            new_open = ((matrix[prev_i, j] + gap_open, (prev_i, j, 0)) for prev_i in prev_is)
+            old_open = ((open_matrix_a[prev_i, j] + gap_extend, (prev_i, j, 1)) for prev_i in prev_is)
+            return max(chain(new_open, old_open))
+
+        def get_best_b(i, prev_js):
+            new_open = ((matrix[i, prev_j] + gap_open, (i, prev_j, 0)) for prev_j in prev_js)
+            old_open = ((open_matrix_b[i, prev_j] + gap_extend, (i, prev_j, 2)) for prev_j in prev_js)
+            return max(chain(new_open, old_open))
+
         for i in range(1, len(seq_a)+1):
             for j in range(1, len(seq_b)+1):
                 prev_is = get_prev_a(i)
                 prev_js = get_prev_b(j)
-                max_indel = max(chain((matrix[prev_i, j]+gap_open for prev_i in prev_is),
-                                      (matrix[i, prev_j]+gap_open for prev_j in prev_js)))
-                max_match = max(matrix[prev_i, prev_j]+comb_scores[prev_i, prev_j]
-                                for prev_i in prev_is for prev_j in prev_js)
-                open_matrix_a[i, j] = max(max(matrix[prev_i, j]+gap_open,
-                                              open_matrix_a[prev_i, j]+gap_extend)
-                                          for prev_i in prev_is)
+                score, ij = get_best_linear(i, j)
+                ijk = (ij[0], ij[1], 0)
+                a_score, a_ijk = get_best_a(prev_is, j)
+                b_score, b_ijk = get_best_b(i, prev_js)
+                open_matrix_a[i, j] = a_score
+                backtrack_matrices[1, i, j] = a_ijk
+                open_matrix_b[i, j] = b_score
+                backtrack_matrices[2, i, j] = b_ijk
+                m_score, m_ijk = max(((score, ijk),
+                                     (a_score, a_ijk), (b_score, b_ijk)))
+                backtrack_matrices[0, i, j] = m_ijk
+                matrix[i, j] = m_score
 
-                open_matrix_b[i, j] = max(max(matrix[i, prev_j]+gap_open,
-                                              open_matrix_b[i, prev_j] + gap_extend)
-                                          for prev_j in prev_js)
-                matrix[i, j] = max(max_indel, max_match,
-                                   open_matrix_a[i, j], open_matrix_b[i, j])
+#                 open_matrix_a[i, j] = max(max(matrix[prev_i, j] + gap_open,
+#                                               open_matrix_a[prev_i, j]+gap_extend)
+#                                           for prev_i in prev_is)
+# 
+#                 open_matrix_b[i, j] = max(max(matrix[i, prev_j]+gap_open,
+#                                               open_matrix_b[i, prev_j] + gap_extend)
+#                                           for prev_j in prev_js)
+#                 matrix[i, j] = max(max_indel, max_match,
+#                                    open_matrix_a[i, j], open_matrix_b[i, j])
 
         print(matrix)
         return matrix[-1, -1]

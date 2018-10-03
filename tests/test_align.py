@@ -1,15 +1,5 @@
-from graphalign import get_align_func, get_score_mat
-import pytest
-
-
-@pytest.fixture
-def align():
-    return get_align_func(-1, get_score_mat(-1))
-
-
-@pytest.fixture
-def align_affine():
-    return get_align_func(-3, get_score_mat(-1), -1)
+from fixtures import *
+# import pytest
 
 
 def test_align(align):

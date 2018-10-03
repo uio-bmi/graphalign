@@ -7,6 +7,8 @@ SequenceGraph = namedtuple("SequenceGraph",
 
 
 def naive_graph(sequence):
+    if isinstance(sequence, SequenceGraph):
+        return sequence
     n_nodes = len(sequence)//3
     node_offsets = list(i*3 for i in range(n_nodes))
     adj_list = {i: [i+1] for i in range(n_nodes-1)}
