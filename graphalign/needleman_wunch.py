@@ -66,21 +66,36 @@ def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
             indels = list(chain(((prev_i, j) for prev_i in prev_is),
                                 ((i, prev_j) for prev_j in prev_js)))
             indel_scores = [matrix[_i, _j]+gap_open for _i, _j in indels]
-            matches = [(prev_i, prev_j) for prev_i in prev_is for prev_j in prev_js]
-            match_scores = [matrix[_i, _j]+comb_scores[_i, _j] for _i, _j in matches]
+            matches = [(prev_i, prev_j)
+                       for prev_i in prev_is
+                       for prev_j in prev_js]
+            match_scores = [matrix[_i, _j]+comb_scores[_i, _j]
+                            for _i, _j in matches]
             tmp = list(chain(zip(indel_scores, indels),
                              zip(match_scores, matches)))
             return max(tmp)
 
         def get_best_a(prev_is, j):
-            new_open = ((matrix[prev_i, j] + gap_open, (prev_i, j, 0)) for prev_i in prev_is)
-            old_open = ((open_matrix_a[prev_i, j] + gap_extend, (prev_i, j, 1)) for prev_i in prev_is)
+            new_open = ((matrix[prev_i, j] + gap_open, (prev_i, j, 0))
+                        for prev_i in prev_is)
+            old_open = ((open_matrix_a[prev_i, j] + gap_extend, (prev_i, j, 1))
+                        for prev_i in prev_is)
             return max(chain(new_open, old_open))
 
         def get_best_b(i, prev_js):
-            new_open = ((matrix[i, prev_j] + gap_open, (i, prev_j, 0)) for prev_j in prev_js)
-            old_open = ((open_matrix_b[i, prev_j] + gap_extend, (i, prev_j, 2)) for prev_j in prev_js)
+            new_open = ((matrix[i, prev_j] + gap_open,
+                         (i, prev_j, 0)) for prev_j in prev_js)
+            old_open = ((open_matrix_b[i, prev_j] + gap_extend,
+                         (i, prev_j, 2)) for prev_j in prev_js)
             return max(chain(new_open, old_open))
+
+        def backtrack(backtrack_matrix):
+            i, j, k = (len(seq_a), len(seq_b), 0)
+            path = []
+            while i > 0 and j > 0:
+                path.append((i, j))
+                i, j, k = backtrack_matrix[k, i, j]
+            return path
 
         for i in range(1, len(seq_a)+1):
             for j in range(1, len(seq_b)+1):
@@ -110,6 +125,7 @@ def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
 #                                    open_matrix_a[i, j], open_matrix_b[i, j])
 
         print(matrix)
+        backtrack(backtrack_matrices)
         return matrix[-1, -1]
 
     if use_graphs:
