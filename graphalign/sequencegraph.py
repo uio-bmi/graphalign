@@ -5,6 +5,73 @@ import numpy as np
 SequenceGraph = namedtuple("SequenceGraph",
                            ["sequences", "node_offsets", "adj_list"])
 
+Alignment = namedtuple("Alignment", ["seq_a", "seq_b"])
+
+
+def alignment_to_sequencegraph(alignment):
+    seq_a, seq_b = alignment
+    print(seq_a, seq_b)
+    adj_list = defaultdict(set)
+    node_offsets = []
+    sequences = []
+    iter_a, iter_b = (iter(seq_a), iter(seq_b))
+    cur_a, cur_b = (next(iter_a), next(iter_b))
+    print(list(zip(seq_a, seq_b)))
+    pairs = iter(zip(seq_a, seq_b))
+    cur_a, cur_b = next(pairs)
+    i = 0
+    prev_a, prev_b = (None, None)
+    while True:
+        cur_node = len(node_offsets)
+        node_offsets.append(i)
+        try:
+            if cur_a == cur_b:
+                adj_list[prev_a].add(cur_node)
+                adj_list[prev_b].add(cur_node)
+                prev_a = cur_node
+                prev_b = cur_node
+                while cur_a == cur_b:
+                    print("MATCH",  cur_a, cur_b)
+                    sequences.append(cur_a)
+                    i += 1
+                    cur_a, cur_b = next(pairs)
+                continue
+            elif cur_a == "-":
+                adj_list[prev_a].add(cur_node)
+                adj_list[prev_b].add(cur_node)
+                prev_b = cur_node
+                while cur_a == "-":
+                    sequences.append(cur_b)
+                    i += 1
+                    cur_a, cur_b = next(pairs)
+                continue
+            elif cur_b == "-":
+                adj_list[prev_a].add(cur_node)
+                adj_list[prev_b].add(cur_node)
+                prev_a = cur_node
+                while cur_b == "-":
+                    sequences.append(cur_a)
+                    i += 1
+                    cur_a, cur_b = next(pairs)
+                continue
+            else:
+                adj_list[prev_a].add(cur_node)
+                adj_list[prev_b].add(cur_node)
+                adj_list[prev_a].add(cur_node+1)
+                adj_list[prev_b].add(cur_node+1)
+                prev_a = cur_node
+                prev_b = cur_node+1
+                sequences.append(cur_a)
+                i += 1
+                node_offsets.append(i)
+                sequences.append(cur_b)
+                i += 1
+                cur_a, cur_b = next(pairs)
+        except StopIteration:
+            break
+    del adj_list[None]
+    return SequenceGraph(sequences, node_offsets, adj_list)
+
 
 def naive_graph(sequence):
     if isinstance(sequence, SequenceGraph):

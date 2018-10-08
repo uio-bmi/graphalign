@@ -18,7 +18,8 @@ def get_score_mat(mismatch_score, alphabet_size=4):
     return scores
 
 
-def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
+def get_align_func(gap_open, score_matrix, gap_extend=None,
+                   use_graphs=True, return_seq=False):
     if gap_extend is None:
         gap_extend = gap_open
 
@@ -26,6 +27,7 @@ def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
         return np.array([[score_matrix[c_a][c_b] for c_b in seq_b] for c_a in seq_a])
 
     def init_matrices(len_a, len_b):
+        # TODO: Set gap penalty for shortest path
         matrix = np.zeros((len_a+1, len_b+1))
         open_matrix_a = np.zeros((len_a+1, len_b+1))
         open_matrix_b = np.zeros((len_a+1, len_b+1))
@@ -60,7 +62,12 @@ def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
             len(seq_a), len(seq_b))
         get_prev_a = get_prev_func(graph_a)
         get_prev_b = get_prev_func(graph_b)
-        backtrack_matrices = np.zeros((3, len(seq_a)+1, len(seq_b)+1, 3), dtype="int")
+        backtrack_matrices = np.zeros((3, len(seq_a)+1, len(seq_b)+1, 3),
+                                      dtype="int")
+        backtrack_matrices[:, 0, 1:, 1] = np.arange(len(seq_b))
+        backtrack_matrices[:, 0, 1:, 2] = 1
+        backtrack_matrices[:, 1:, 0, 0] = np.arange(len(seq_a))
+        backtrack_matrices[:, 1:, 0, 2] = 2
 
         def get_best_linear(i, j):
             indels = list(chain(((prev_i, j) for prev_i in prev_is),
@@ -71,31 +78,50 @@ def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
                        for prev_j in prev_js]
             match_scores = [matrix[_i, _j]+comb_scores[_i, _j]
                             for _i, _j in matches]
-            tmp = list(chain(zip(indel_scores, indels),
-                             zip(match_scores, matches)))
-            return max(tmp)
+            tmp = list(chain(zip(match_scores, matches),
+                             zip(indel_scores, indels)))
+            i = np.argmax(match_scores+indel_scores)
+            return tmp[i]
+
+        # return max(tmp)
 
         def get_best_a(prev_is, j):
             new_open = ((matrix[prev_i, j] + gap_open, (prev_i, j, 0))
                         for prev_i in prev_is)
             old_open = ((open_matrix_a[prev_i, j] + gap_extend, (prev_i, j, 1))
                         for prev_i in prev_is)
-            return max(chain(new_open, old_open))
+            tmp = list(chain(old_open, new_open))
+            i = np.argmax([t[0] for t in tmp])
+            return tmp[i]
 
         def get_best_b(i, prev_js):
             new_open = ((matrix[i, prev_j] + gap_open,
                          (i, prev_j, 0)) for prev_j in prev_js)
             old_open = ((open_matrix_b[i, prev_j] + gap_extend,
                          (i, prev_j, 2)) for prev_j in prev_js)
-            return max(chain(new_open, old_open))
+            tmp = list(chain(old_open, new_open))
+            i = np.argmax([t[0] for t in tmp])
+            return tmp[i]
 
         def backtrack(backtrack_matrix):
             i, j, k = (len(seq_a), len(seq_b), 0)
-            path = []
-            while i > 0 and j > 0:
-                path.append((i, j))
+            path = [(i, j)]
+            while i > 0 or j > 0:
                 i, j, k = backtrack_matrix[k, i, j]
-            return path
+                path.append((i, j))
+            print("------------------")
+            print(seq_a, seq_b)
+            print(path)
+            return path[::-1]
+
+        def translate_path(path, seq):
+            alignment = []
+            for idx, next_idx in zip(path[:-1], path[1:]):
+                if idx == next_idx:
+                    alignment.append("-")
+                else:
+                    alignment.append(seq[idx])
+            return "".join(alignment)
 
         for i in range(1, len(seq_a)+1):
             for j in range(1, len(seq_b)+1):
@@ -109,23 +135,27 @@ def get_align_func(gap_open, score_matrix, gap_extend=None, use_graphs=True):
                 backtrack_matrices[1, i, j] = a_ijk
                 open_matrix_b[i, j] = b_score
                 backtrack_matrices[2, i, j] = b_ijk
-                m_score, m_ijk = max(((score, ijk),
-                                     (a_score, a_ijk), (b_score, b_ijk)))
+                scores = [score, a_score, b_score]
+                idxs = [ijk, a_ijk, b_ijk]
+                max_idx = np.argmax(scores)
+                m_score = scores[max_idx]
+                m_ijk = idxs[max_idx]
+                # m_score, m_ijk = max(((score, ijk),
+                #                      (a_score, a_ijk), (b_score, b_ijk)))
                 backtrack_matrices[0, i, j] = m_ijk
                 matrix[i, j] = m_score
-
-#                 open_matrix_a[i, j] = max(max(matrix[prev_i, j] + gap_open,
-#                                               open_matrix_a[prev_i, j]+gap_extend)
-#                                           for prev_i in prev_is)
-# 
-#                 open_matrix_b[i, j] = max(max(matrix[i, prev_j]+gap_open,
-#                                               open_matrix_b[i, prev_j] + gap_extend)
-#                                           for prev_j in prev_js)
-#                 matrix[i, j] = max(max_indel, max_match,
-#                                    open_matrix_a[i, j], open_matrix_b[i, j])
-
-        print(matrix)
-        backtrack(backtrack_matrices)
+        # print(matrix)
+        if return_seq:
+            path = backtrack(backtrack_matrices)
+            path_a, path_b = zip(*path)
+            seq_a = [DNAAlphabet.to_str[c] for c in seq_a]
+            seq_b = [DNAAlphabet.to_str[c] for c in seq_b]
+            alignment_a = translate_path(path_a, seq_a)
+            alignment_b = translate_path(path_b, seq_b)
+            print(matrix)
+            # print(open_matrix_a[:10, :10])
+            print(open_matrix_b)
+            return (alignment_a, alignment_b, matrix[-1, -1])
         return matrix[-1, -1]
 
     if use_graphs:
