@@ -7,8 +7,10 @@ from .sequencegraph import get_prev_func, naive_graph
 
 Alphabet = namedtuple("Alphabet", ["to_str", "to_num"])
 
+
 _dna_chars = ["A", "C", "G", "T"]
 DNAAlphabet = Alphabet(_dna_chars, {c: i for i, c in enumerate(_dna_chars)})
+BackTrack = namedtuple("BackTrack", ["offset_a", "offset_b"])
 
 
 def get_score_mat(mismatch_score, alphabet_size=4):
@@ -109,9 +111,6 @@ def get_align_func(gap_open, score_matrix, gap_extend=None,
             while i > 0 or j > 0:
                 i, j, k = backtrack_matrix[k, i, j]
                 path.append((i, j))
-            print("------------------")
-            print(seq_a, seq_b)
-            print(path)
             return path[::-1]
 
         def translate_path(path, seq):

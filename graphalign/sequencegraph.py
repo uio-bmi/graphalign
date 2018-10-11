@@ -5,6 +5,8 @@ import numpy as np
 SequenceGraph = namedtuple("SequenceGraph",
                            ["sequences", "node_offsets", "adj_list"])
 
+MathGraph = namedtuple("MathGraph", ["nodes", "edges"])
+
 Alignment = namedtuple("Alignment", ["seq_a", "seq_b"])
 
 
