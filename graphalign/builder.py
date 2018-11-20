@@ -42,6 +42,16 @@ class GraphBuilder:
     def __repr__(self):
         pass
 
+    def __add__(self, other):
+        node_offset = self._max_node+1
+        nodes = {node_offset+node_id: seq
+                 for node_id, seq in other._nodes.items()}
+        nodes.update(self._nodes)
+        adj_list = {node_offset+node_id: [node_offset+n for n in nexts]
+                    for node_id, nexts in other._adj_list}
+        adj_list.update(self._adj_list)
+        return self.__class__(nodes, adj_list)
+
     def size(self):
         return self._max_node + 1
 
@@ -114,6 +124,17 @@ class GraphBuilder:
     def to_struct(self):
         return BuilderStruct(self._nodes, {k: list(sorted(v)) for k, v in self._adj_list.items() if v})
 
+    def to_topology(self):
+        topology = defaultdict(list)
+        for node_id, seq in self._nodes.items():
+            if not self._adj_list[node_id]:
+                continue
+            topology[tuple(seq)].append(
+                tuple(sorted(self._nodes[n] for n in self._adj_list[node_id])))
+        for v in topology.values():
+            v.sort()
+        return topology
+
     def add_snp(self, pos, seq):
         node_id, offset = pos
         next_node = None
@@ -183,8 +204,7 @@ class GraphMerger(GraphBuilder):
         if len(interval.nodes) == 1:
             return [interval.end-interval.start]
         start_len = self.node_size(interval.nodes[0])-interval.start
-        offsets = [start_len] + [self.node_size(n) for node in interval.nodes[1:-1]]+[interval.end]
-
+        offsets = [start_len] + [self.node_size(n) for n in interval.nodes[1:-1]]+[interval.end]
         return offsets
 
     def _split_interval(self, interval, offsets):
